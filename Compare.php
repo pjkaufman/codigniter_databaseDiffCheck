@@ -258,9 +258,9 @@ class Compare extends MX_Controller
 	                            {
 	                                // ALTER TABLE `bugs` MODIFY COLUMN `site_name`  varchar(255) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL AFTER `type`;
 	                                // ALTER TABLE `bugs` MODIFY COLUMN `message`  varchar(255) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL AFTER `site_name`;
-	                                $modify_field = "ALTER TABLE $table MODIFY COLUMN `" . $fields[$n]["name"] . "` " . $fields[$n]["type"];
+	                                $modify_field = "ALTER TABLE $table MODIFY COLUMN `" . $fields[$n]["name"] . "` " . $fields[$n]["type"] . "(";
+                                  $modify_field .= (isset($fields[$n]["max_length"]) && $fields[$n]["max_length"] != '') ? '' . $fields[$n]["max_length"] . ")" : '';
 	                                $modify_field .= (isset($fields[$n]["default"]) && $fields[$n]["default"] != '') ? ' DEFAULT \'' . $fields[$n]["default"] . '\'' : '';
-	                                $modify_field .= (isset($fields[$n]["max-length"]) && $fields[$n]["max-length"] != '') ? ' ' . $fields[$n]["max-legth"] : '';
 	                                $modify_field .= (isset($previous_field) && $previous_field != '') ? ' AFTER ' . $previous_field : '';
 	                                $modify_field .= ';';
 	                            }
