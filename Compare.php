@@ -17,7 +17,6 @@ class Compare extends MX_Controller
 
     function index()
     {
-      $this->get_indices();
       /*
        * This will become a list of SQL Commands to run on the Live database to bring it up to date
        */
@@ -40,12 +39,7 @@ class Compare extends MX_Controller
       $sql_commands_to_run = array_merge($sql_commands_to_run, $results);
       $results = (is_array($tables_to_drop) && !empty($tables_to_drop)) ? $this->manage_tables($tables_to_drop, 'drop') : array() ;
       $sql_commands_to_run = array_merge($sql_commands_to_run, $results);
-      $tables_to_update = $this->compare_table_structures($development_tables, $live_tables); // correct amount of difference found
-      /*
-       * add, and or drop indices
-       */
-       $results = $this->manage_indices($this->index1, $this->index2);
-       $sql_commands_to_run = array_merge($sql_commands_to_run, $results);
+      $tables_to_update = $this->compare_table_structures($development_tables, $live_tables);
       /*
        * Before comparing tables, remove any tables from the list that will be created in the $tables_to_create array
        */
@@ -55,6 +49,12 @@ class Compare extends MX_Controller
        */
       $results = (is_array($tables_to_update) && !empty($tables_to_update)) ? $this->update_existing_tables($tables_to_update) : array() ;
       $sql_commands_to_run = array_merge($sql_commands_to_run, $results);
+      /*
+       * add, and or drop indices
+       */
+       $this->get_indices();
+       $results = $this->manage_indices($this->index1, $this->index2);
+       $sql_commands_to_run = array_merge($sql_commands_to_run, $results);
       if (is_array($sql_commands_to_run) && !empty($sql_commands_to_run))
       {
           echo "<h2>The database is out of Sync!</h2>\n";
@@ -72,7 +72,8 @@ class Compare extends MX_Controller
       }
       }
       function get_indices(){
-        $sql = "SELECT t.name AS `Table`, i.name AS `Index`, GROUP_CONCAT(f.name ORDER BY f.pos) AS `Columns` FROM information_schema.innodb_sys_tables t JOIN information_schema.innodb_sys_indexes i USING (table_id) JOIN information_schema.innodb_sys_fields f USING (index_id) WHERE t.name LIKE '" . $this->DB1->database . "/%' GROUP BY 1,2;";
+        // author of the sql: Aaron Brown, link: http://blog.9minutesnooze.com/mysql-information-schema-indexes/
+        $sql = "SELECT t.name AS `Table`, i.name AS `Index`, i.TYPE, GROUP_CONCAT(f.name ORDER BY f.pos) AS `Columns` FROM information_schema.innodb_sys_tables t JOIN information_schema.innodb_sys_indexes i USING (table_id) JOIN information_schema.innodb_sys_fields f USING (index_id) WHERE t.name LIKE '" . $this->DB1->database . "/%' GROUP BY 1,2;";
         $indices = $this->DB1->query($sql)->result();
         $id = 1;
         foreach ($indices as $index){
@@ -82,9 +83,10 @@ class Compare extends MX_Controller
               'table'   =>  $index['Table'],
               'index'   =>  $index['Index'],
               'column'  =>  $index['Columns'],
+              'type'    =>  $index['TYPE'],
           );
         }
-        $sql = "SELECT t.name AS `Table`, i.name AS `Index`, GROUP_CONCAT(f.name ORDER BY f.pos) AS `Columns` FROM information_schema.innodb_sys_tables t JOIN information_schema.innodb_sys_indexes i USING (table_id) JOIN information_schema.innodb_sys_fields f USING (index_id) WHERE t.name LIKE '" . $this->DB2->database . "/%' GROUP BY 1,2;";
+        $sql = "SELECT t.name AS `Table`, i.name AS `Index`, i.TYPE, GROUP_CONCAT(f.name ORDER BY f.pos) AS `Columns` FROM information_schema.innodb_sys_tables t JOIN information_schema.innodb_sys_indexes i USING (table_id) JOIN information_schema.innodb_sys_fields f USING (index_id) WHERE t.name LIKE '" . $this->DB2->database . "/%' GROUP BY 1,2;";
         $indices = $this->DB2->query($sql)->result();
         foreach ($indices as $index){
           $index = (array)$index;
@@ -93,6 +95,7 @@ class Compare extends MX_Controller
               'table'   =>  $index['Table'],
               'index'   =>  $index['Index'],
               'column'  =>  $index['Columns'],
+              'type'    =>  $index['TYPE'],
           );
         }
       }
@@ -100,7 +103,6 @@ class Compare extends MX_Controller
       * Manage indices, add or drop them
       * @param array indices of db 1
       * @param array indices of db 2
-      * @param int $action detemines which statements to add
       * @return array $sql_commands_to_run
       */
       function manage_indices($indices1, $indices2)
@@ -121,27 +123,70 @@ class Compare extends MX_Controller
             }
           }
         }
-        for( $i = 0; $i < count($indices_missing); $i++)
-          {
-          if(array_key_exists($indices_missing[$i]['table'] . '-' . $indices_missing[$i]['index'], $this->index2))
-          {
-            $sql_commands_to_run[] = 'DROP INDEX `' . $indices_missing[$i]['index'] . '` ON `' . $indices_missing[$i]['table'] . '`;';
-            $sql_commands_to_run[] = 'CREATE INDEX `' . $indices_missing[$i]['index'] . '` ON `' . $indices_missing[$i]['table'] . '`(' . $indices_missing[$i]['column'] . ');' ;
-          } else
-          {
-            $sql_commands_to_run[] = 'CREATE INDEX `' . $indices_missing[$i]['index'] . '` ON `' . $indices_missing[$i]['table'] . '`(' . $indices_missing[$i]['column'] . ');' ;
-          }
-        }
         // check for unneeded indices
         foreach ($indices2 as $index)
         {
           if($this->DB1->table_exists($index['table']) && !(array_key_exists($index['table'] . '-' . $index['index'], $indices1)))
           {
-              $sql_commands_to_run[] = 'DROP INDEX `' . $index['index'] . '` ON `' . $index['table'] . '`;';
+              'ALTER TABLE `' . $indices_missing[$i]['table'] . '` DROP' . $this->get_type($indices_missing[$i]['type'], $indices_missing[$i], 1);
+          }
+        }
+        for( $i = 0; $i < count($indices_missing); $i++)
+        {
+          if(array_key_exists($indices_missing[$i]['table'] . '-' . $indices_missing[$i]['index'], $this->index2))
+          {
+            $sql_commands_to_run[] = 'ALTER TABLE `' . $indices_missing[$i]['table'] . '` DROP' . $this->get_type($indices_missing[$i]['type'], $indices_missing[$i], 1);
+            $sql_commands_to_run[] = 'ALTER TABLE `' . $indices_missing[$i]['table'] . '` ADD' . $this->get_type($indices_missing[$i]['type'], $indices_missing[$i], 0);
+          } else
+          {
+            $sql_commands_to_run[] = 'ALTER TABLE `' . $indices_missing[$i]['table'] . '` ADD' . $this->get_type($indices_missing[$i]['type'], $indices_missing[$i], 0);
           }
         }
 
         return $sql_commands_to_run;
+      }
+      /**
+       * @author Peter Kaufman
+       * @description get_type returns the type of an index
+       * @example get_type(3); returns PRIMARY
+       * @access public
+       * @param [int] $int is the integer type of the mysql index type
+       * @param [array] $args is an array that conatians the needed info about an index
+       * @param [int] $atmpt is an integer that determines what is returned
+       * @return [string] a string that represents the mysql type and a little string
+       */
+      function get_type($int, $args, $atmpt)
+      {
+        $type;
+        if($int == 3)
+        {
+          $type = ' PRIMARY KEY ';
+        } elseif($int == 32)
+        {
+          $type = ' FULLTEXT INDEX ';
+        } elseif($int == 64)
+        {
+          $type = ' SPATIAL INDEX ';
+        } elseif($int == 2)
+        {
+          $type = ' UNIQUE INDEX ';
+        } else
+        {
+          $type = ' INDEX ';
+        }
+        if($atmpt == 0 && $int == 3)
+        {
+          return $type . '(' . $args['column'] . ');';
+        }elseif($atmpt == 0 && $int != 3)
+        {
+          return $type . ' `' . $args['index'] . '` (' . $args['column'] . ');';
+        }elseif($atmpt == 1 && $int != 3)
+        {
+          return $type . '`' . $args['index'] . '`;';
+        }else
+        {
+          return $type;
+        }
       }
 
       /**
@@ -220,7 +265,6 @@ class Compare extends MX_Controller
               $tables_need_updating[] = $table;
           }
       }
-
       return $tables_need_updating;
       }
 
@@ -291,11 +335,14 @@ class Compare extends MX_Controller
       */
       function table_field_data($database, $table)
       {
-      $result = $database->field_data("$table");
+      if($database->table_exists($table))
+      {
+      $result = $database->query("SELECT COLUMN_NAME as `name`,  COLUMN_TYPE as `type`, COLUMN_DEFAULT as `default`, EXTRA as `extra`, IS_NULLABLE,  AUTO_INCREMENT as `auto_increment` FROM information_schema.COLUMNS a  LEFT JOIN INFORMATION_SCHEMA.TABLES b ON a.TABLE_NAME = b.TABLE_NAME WHERE a.TABLE_SCHEMA = '" . $database->database . "' AND a.TABLE_NAME = '" . $table . "';")->result();
 
       foreach ($result as $row)
       {
           $fields[] = (array)$row;
+      }
       }
 
       return $fields;
@@ -334,8 +381,9 @@ class Compare extends MX_Controller
                                 // ALTER TABLE `bugs` MODIFY COLUMN `site_name`  varchar(255) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL AFTER `type`;
                                 // ALTER TABLE `bugs` MODIFY COLUMN `message`  varchar(255) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL AFTER `site_name`;
                                 $modify_field = "ALTER TABLE $table MODIFY COLUMN `" . $fields[$n]["name"] . "` " . $fields[$n]["type"];
-                                $modify_field .= (isset($fields[$n]["max_length"]) && $fields[$n]["max_length"] != '') ? '(' . $fields[$n]["max_length"] . ')' : '';
-                                $modify_field .= (isset($fields[$n]["default"]) && $fields[$n]["default"] != NULL) ? ' DEFAULT \'' . $fields[$n]["default"] . '\'' : 'DEFAULT NULL';
+                                $modify_field .= (isset($fields[$n]["IS_NULLABLE"]) && $fields[$n]["IS_NULLABLE"] != 'NO') ? ' NULL ' : ' NOT NULL ';
+                                $modify_field .= (isset($fields[$n]["default"]) && $fields[$n]["default"] != NULL) ? ' DEFAULT \'' . $fields[$n]["default"] . '\'' : '';
+                                $modify_field .= (isset($fields[$n]["extra"]) && $fields[$n]["extra"] != '') ?  ' INT ' . $fields[$n]["extra"] . ' = ' . $fields[$n]["auto_increment"] : '';
                                 if ($n == 0) {
                                   $modify_field .= ';';
                                 } else{
@@ -357,10 +405,10 @@ class Compare extends MX_Controller
                      * Add
                      */
                     $add_field = "ALTER TABLE $table ADD COLUMN `" . $field["name"] . "` " . $field["type"];
-                    $add_field .= (isset($field["max_length"]) && $field["max_length"] != null) ? '(' . $field["max_length"] . ')' : '';
-                    $add_field .= (isset($field["primary_key"]) && $field["primary_key"] != null) ? ' PRIMARY KEY ' : '';
+                    $add_field .= (isset($fields["IS_NULLABLE"]) && $fields["IS_NULLABLE"] != 'NO') ? ' NULL ' : ' NOT NULL ';
                     $add_field .= (isset($field["default"]) && $field["default"] != null) ? ' DEFAULT \'' . $field["default"] . '\'' : '';
                     $add_field .= (isset($previous_field) && $previous_field != '') ? ' AFTER ' . $previous_field : '';
+                    $add_field .= (isset($fields["extra"]) && $fields["extra"] != '') ?  ' INT ' . $fields["extra"] . ' = ' . $fields["auto_increment"] : '';
                     $add_field .= ';';
                     $sql_commands_to_run[] = $add_field;
                 }
@@ -381,7 +429,7 @@ class Compare extends MX_Controller
                 if($this->in_array_recursive($field["name"], $destination_field_structures[$table])){
                   // shouldn't be acted upon because the column is in the original file
               }else{
-                $delete_field = "ALTER TABLE $table DROP COLUMN `" . $field["name"] . "` ";
+                $delete_field = "ALTER TABLE $table DROP COLUMN `" . $field["name"] . "`;";
                 $sql_commands_to_run[] = $delete_field;
               }
             }
