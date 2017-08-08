@@ -158,24 +158,24 @@ class Compare extends MX_Controller
      */
     private function get_type($int, $args, $atmpt){
       $type;
-      $column;
+      $column = '';
       if($int == 3){
         $type = ' PRIMARY KEY ';
       }else{
         $type = ' INDEX ';
       }
-      $columns = explode($args['column'], ',');
+      $columns = explode(',', $args['column']);
       for ($i = 0; $i < count($columns); $i++){
         if ($i < count($columns) - 1){
-          $column = '`' . $columns[$i] . '`, ';
+          $column .= '`' . $columns[$i] . '`, ';
         }else{
-          $column = '`' . $columns[$i] . '`';
+          $column .= '`' . $columns[$i] . '`';
         }
       }
       if($atmpt == 0 && $int == 3){
-        return $type . '(`' . $column . '`);';
+        return $type . '(' . $column . ');';
       }elseif($atmpt == 0 && $int != 3){
-        return $type . ' `' . $args['index'] . '` (`' . $column . '`);';
+        return $type . ' `' . $args['index'] . '` (' . $column . ');';
       }elseif($atmpt == 1 && $int != 3){
         return $type . '`' . $args['index'] . '`;';
       }else{
