@@ -5,7 +5,7 @@ Compares 2 schemas and responds with the sql to make the schemas the same.
 Must have two database connections in the databases.php file in the application's config folder or just two databases that are accessible.
 ## Setup
 ###### Codeigniter Controllers
--Put in the controllers folder of your application folder
+-Put in the controllers folder of your application folder  
 -The call the controller using your base path /compare
 ###### PHP Classes
 -Copy the class into the desired file or include it using ``include 'filename';``  
