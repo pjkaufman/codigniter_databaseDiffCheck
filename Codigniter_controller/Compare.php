@@ -20,7 +20,8 @@ class Compare extends MX_Controller
 
     function index()
     {
-
+      /*
+       * This will become a list of SQL Commands to run on the Live database to bring it up to date
        */
       $sql_commands_to_run = array();
       /*
@@ -350,7 +351,7 @@ class Compare extends MX_Controller
                      // ALTER TABLE `bugs` MODIFY COLUMN `site_name` varchar(255) NULL DEFAULT NULL AFTER `type`;
                      $modify_field = "ALTER TABLE `$table` MODIFY COLUMN `" . $field['name'] . "` " . $field['type'];
                      $modify_field .= (isset($field['IS_NULLABLE']) && $field['IS_NULLABLE'] != 'NO') ? ' NULL ' : ' NOT NULL ';
-                     $modify_field .= (isset($field['default']) && $field['default'] != NULL ) ? 'DEFAULT ' . $field['default'] . '' : 'DEFAULT NULL';
+                     $modify_field .= (isset($field['default']) && $field['default'] != NULL) ? ' DEFAULT \'' . $field['default'] . '\'' : '';
                      $modify_field .= (isset($field['extra']) && $field['extra'] != '') ? $field['extra'] : '';
                      if ($n == 0) {
                        $modify_field .= ';';
@@ -376,7 +377,7 @@ class Compare extends MX_Controller
                  */
                  $add_field = "ALTER TABLE `$table` ADD COLUMN `" . $field['name'] . "` " . $field['type'];
                  $add_field .= (isset($fields['IS_NULLABLE']) && $fields['IS_NULLABLE'] != 'NO') ? ' NULL ' : ' NOT NULL ';
-                 $add_field .= (isset($field['default']) && $field['default'] != NULL ) ? 'DEFAULT ' . $field['default'] . '' : 'DEFAULT NULL';
+                 $add_field .= (isset($field['default']) && $field['default'] != null) ? ' DEFAULT \'' . $field['default'] . '\'' : '';
                  $add_field .= (isset($previous_field) && $previous_field != '') ? ' AFTER `' . $previous_field . '`' : '';
                  $add_field .= (isset($fields['extra']) && $fields['extra'] != '') ?  ' INT ' . $fields['extra'] . ' = ' . $fields['auto_increment'] : '';
                  $add_field .= ';';
@@ -424,6 +425,6 @@ class Compare extends MX_Controller
         }
       }
       return false;
-      }
     }
-    ?>
+  }
+?>
