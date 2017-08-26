@@ -11,5 +11,4 @@ Must have two database connections in the databases.php file in the application'
 -Copy the class into the desired file or include it using ``include 'filename';``  
 -Create an instance of the class in the desired file and pass in your hostname, username, password, and database name in an associative array.  
 #### TODO
--Add a version that uses a snapshot of a database and one database connection  
--Make the controller into a controller and a model  
+-Add a version that uses a snapshot of a database and one database connection    
