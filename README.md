@@ -6,9 +6,8 @@ Must have two database connections in the databases.php file in the application'
 ## Setup
 ###### Codeigniter Controllers
 -Put in the controllers folder of your application folder  
--The call the controller using your base path /compare
+-The call the controller using your base path /compare  
+-MUST HAVE A FILE CALLED dbsnapshot.json IN THE COMPARE FOLDER UNLESS THE PATH TO WHERE THE FILE IS SAVED IS CHANGED IN THE CODE
 ###### PHP Classes
 -Copy the class into the desired file or include it using ``include 'filename';``  
 -Create an instance of the class in the desired file and pass in your hostname, username, password, and database name in an associative array.  
-#### TODO
--Add a version that uses a snapshot of a database and one database connection    
